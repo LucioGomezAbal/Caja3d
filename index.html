@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Personalizador de Cajas</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #ui {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 15px;
+      border-radius: 8px;
+      z-index: 10;
+      max-width: 250px;
+    }
+    label { display: block; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <label>
+      Elegir cara:
+      <select id="faceSelector">
+        <option value="0">Right</option>
+        <option value="1">Left</option>
+        <option value="2">Top</option>
+        <option value="3">Bottom</option>
+        <option value="4" selected>Front</option>
+        <option value="5">Back</option>
+      </select>
+    </label>
+
+    <label>
+      Subir imagen:
+      <input type="file" id="imageUploader" accept="image/*">
+    </label>
+
+    <label>
+      Escala:
+      <input type="range" id="scaleSlider" min="0.1" max="1" step="0.05" value="0.5">
+    </label>
+
+    <label>
+      Posición X:
+      <input type="range" id="offsetXSlider" min="0" max="0.9" step="0.01" value="0.25">
+    </label>
+
+    <label>
+      Posición Y:
+      <input type="range" id="offsetYSlider" min="0" max="0.9" step="0.01" value="0.25">
+    </label>
+
+    <label>
+      Color de fondo:
+      <input type="color" id="bgColorPicker" value="#d2b48c">
+    </label>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(3, 2, 5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    const light = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(light);
+
+    const materials = Array(6).fill().map(() => new THREE.MeshToonMaterial({ color: '#d2b48c' }));
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 1.5), materials);
+    scene.add(cube);
+
+    const textureMap = {};
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    const faceSelector = document.getElementById('faceSelector');
+    const scaleSlider = document.getElementById('scaleSlider');
+    const offsetXSlider = document.getElementById('offsetXSlider');
+    const offsetYSlider = document.getElementById('offsetYSlider');
+    const bgColorPicker = document.getElementById('bgColorPicker');
+
+    function updateTextureTransform() {
+      const faceIndex = parseInt(faceSelector.value);
+      const texture = textureMap[faceIndex];
+      if (!texture) return;
+
+      const scale = parseFloat(scaleSlider.value);
+      const offsetX = parseFloat(offsetXSlider.value);
+      const offsetY = parseFloat(offsetYSlider.value);
+
+      texture.repeat.set(scale, scale);
+      texture.offset.set(offsetX, offsetY);
+    }
+
+    [scaleSlider, offsetXSlider, offsetYSlider].forEach(input => {
+      input.addEventListener('input', updateTextureTransform);
+    });
+
+    document.getElementById('imageUploader').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const faceIndex = parseInt(faceSelector.value);
+        const texture = new THREE.TextureLoader().load(event.target.result, () => {
+          texture.minFilter = THREE.LinearFilter;
+          texture.wrapS = THREE.ClampToEdgeWrapping;
+          texture.wrapT = THREE.ClampToEdgeWrapping;
+          texture.repeat.set(parseFloat(scaleSlider.value), parseFloat(scaleSlider.value));
+          texture.offset.set(parseFloat(offsetXSlider.value), parseFloat(offsetYSlider.value));
+
+          textureMap[faceIndex] = texture;
+
+          const mat = materials[faceIndex];
+          mat.map = texture;
+          mat.transparent = true;
+          mat.needsUpdate = true;
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    bgColorPicker.addEventListener('input', () => {
+      const faceIndex = parseInt(faceSelector.value);
+      materials[faceIndex].color.set(bgColorPicker.value);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
